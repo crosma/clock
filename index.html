@@ -73,7 +73,7 @@ var ambient = new THREE.AmbientLight(0xffffff);
 ambient.position.z = 400;
 //scene.add(ambient);
 
-pointLight = new THREE.PointLight(0xffffff, 50);
+pointLight = new THREE.PointLight(0xffffff, 10);
 pointLight.position.set(0, 250, 0);
 scene.add(pointLight);
 
@@ -198,6 +198,7 @@ render = function() {
 
 	for (var i = 0; i < 12; i++) {
 		barsObject.children[i].children[0].rotation.y += 0.008;
+		barsObject.children[i].children[1].rotation.y += 0.008;
 	}
 
 	barsObject.rotation.y -= 0.003;
@@ -220,26 +221,56 @@ function createBar(gradientImage) {
 	//var geometry = new THREE.BoxGeometry(1, 1, 1);
 	var geometry = new THREE.CylinderGeometry(10, 10, 80, 6);
 
-	var cubeMaterial = new THREE.MeshLambertMaterial({
+	var clearMat = new THREE.MeshLambertMaterial({
 		color: 0x1e4985,
 		envMap: reflectionCube,
 		transparent: true,
 		opacity: 0.3,
 		refractionRatio: 0.5
 	});
+	var bar_clear = new THREE.Mesh(geometry, clearMat);
 
-	var mat2 = new THREE.MeshPhongMaterial({
-		color: 0x1e4985,
+
+
+	var solidMat = new THREE.MeshLambertMaterial({
+		color: 0xffffff,
+		envMap: reflectionCube,
 		transparent: true,
-		opacity: 0.5,
-		shininess: 10
+		opacity: 0.9,
+		refractionRatio: 0.5
 	});
+	var bar_solid = new THREE.Mesh(geometry.clone(), solidMat);
+
+
+
+
 
 	var barObject = new THREE.Object3D();
-	barObject.add(new THREE.Mesh(geometry, cubeMaterial));
+
+	barObject.bar_solid = bar_solid;
+	barObject.bar_clear = bar_clear;
+
+	barObject.add(bar_solid);
+	barObject.add(bar_clear);
+
+
+	bar_solid.scale.set(0.9, 0.5, 0.9);
+	bar_solid.position.y = -20 + 0.1;
+
+
 
 	return barObject;
 }
+
+
+/*
+ var mat2 = new THREE.MeshPhongMaterial({
+ color: 0x1e4985,
+ transparent: true,
+ opacity: 0.5,
+ shininess: 10
+ });
+ */
 
 
 function generateBackgroundTexture() {
