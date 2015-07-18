@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>My first Three.js app</title>
+	<style>
+		body {
+			margin: 0;
+			overflow: hidden;
+			background: black;
+		}
+
+		canvas {
+
+		}
+	</style>
+</head>
+<body>
+
+<script src="js/three71.js"></script>
+<script src="js/postprocessing/EffectComposer.js"></script>
+<script src="js/postprocessing/RenderPass.js"></script>
+<script src="js/postprocessing/ShaderPass.js"></script>
+<script src="js/postprocessing/MaskPass.js"></script>
+<script src="js/shaders/CopyShader.js"></script>
+
+<!-- ------ Custom Shader Code for atmospheric glow ------ -->
+<script id="vertexShaderAtmosphere" type="x-shader/x-vertex">
+varying vec3 vNormal;
+void main()
+{
+    vNormal = normalize(normalMatrix * normal);
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+
+</script>
+
+<!-- fragment shader a.k.a. pixel shader -->
+<script id="fragmentShaderAtmosphere" type="x-shader/x-vertex">
+uniform float c;
+uniform float p;
+uniform float r;
+uniform float g;
+uniform float b;
+uniform float a;
+varying vec3 vNormal;
+void main()
+{
+	float intensity = pow(c - dot(vNormal, vec3(0.0, 0.0, 1.0)), p);
+	gl_FragColor = vec4(r, g, b, a) * intensity;
+}
+
+</script>
+
+<script>
+var i;
+var scene = new THREE.Scene();
+
+var camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 500);
+camera.position.z = 200;
+
+
+var renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+
+//ren
+window.addEventListener('resize', onWindowResize, false);
+
+//lights
+var ambient = new THREE.AmbientLight(0xffffff);
+ambient.position.z = 400;
+//scene.add(ambient);
+
+pointLight = new THREE.PointLight(0xffffff, 50);
+pointLight.position.set(0, 250, 0);
+scene.add(pointLight);
+
+
+/*************************************************************
+ **** Create background scene
+ *************************************************************/
+var gradientImage = generateBackgroundTexture();
+var gradientTexture = new THREE.Texture(gradientImage);
+gradientTexture.needsUpdate = true;
+
+//scene.fog = new THREE.Fog(0xffffff, 0.1, 1000);
+//scene.fog = new THREE.FogExp2(0xefd1b5, 0.0025);
+
+var reflectionCube = new THREE.CubeTexture([]);
+for (i = 0; i < 6; i++) {
+	reflectionCube.images[i] = gradientImage;
+}
+reflectionCube.needsUpdate = true;
+
+
+var refractionCube = new THREE.CubeTexture(reflectionCube.image, THREE.CubeRefractionMapping);
+refractionCube.format = THREE.RGBFormat;
+
+//var cubeMaterial1 = new THREE.MeshLambertMaterial( { color: 0xffffff, envMap: reflectionCube } )
+
+/*************************************************************
+ **** Create Cube
+ *************************************************************/
+var geometryCube = new THREE.BoxGeometry(20, 20, 20);
+var materialCube = new THREE.MeshBasicMaterial({color: 0x00ff00});
+var cube = new THREE.Mesh(geometryCube, materialCube);
+//scene.add(cube);
+
+/*************************************************************
+ **** Create Bars
+ *************************************************************/
+var barsObject = new THREE.Object3D();
+scene.add(barsObject);
+
+for (i = 0; i < 12; i++) {
+	var bar = createBar();
+
+	bar.rotation.z = 360 / 12 * i * (Math.PI / 180);
+	bar.translateY(90);
+
+	barsObject.add(bar);
+}
+
+barsObject.rotation.x = -0.1;
+
+/*************************************************************
+ **** Create Balls
+ *************************************************************/
+var customMaterialAtmosphere = new THREE.ShaderMaterial({
+	uniforms: {
+		"c": {type: "f", value: 0.4},
+		"p": {type: "f", value: 3.1},
+		"r": {type: "f", value: 106 / 255},
+		"g": {type: "f", value: 181 / 255},
+		"b": {type: "f", value: 246 / 255},
+		"a": {type: "f", value: 0.5}, //106, 181, 246
+	},
+	vertexShader: document.getElementById('vertexShaderAtmosphere').textContent,
+	fragmentShader: document.getElementById('fragmentShaderAtmosphere').textContent
+});
+
+var sphereGeo = new THREE.SphereGeometry(30, 128, 128);
+var material = new THREE.MeshBasicMaterial({color: 0x6ab5f6});
+var sphere = new THREE.Mesh(sphereGeo, customMaterialAtmosphere);
+
+//sphere.scale.x = sphere.scale.y = sphere.scale.z = 1.2;
+// atmosphere should provide light from behind the sphere, so only render the back side
+sphere.material.side = THREE.BackSide;
+//scene.add(sphere);
+
+
+var particalScene = new THREE.Scene();
+var particleTexture = THREE.ImageUtils.loadTexture('img/spark.png');
+
+var particleGroup = new THREE.Object3D();
+var particleAttributes = {startSize: [], startPosition: [], randomness: []};
+
+var totalParticles = 6;
+var radiusRange = 25;
+for (var i = 0; i < totalParticles; i++) {
+	var spriteMaterial = new THREE.SpriteMaterial({map: particleTexture, useScreenCoordinates: true, color: 0xffffff});
+
+	var sprite = new THREE.Sprite(spriteMaterial);
+	sprite.scale.set(32, 32, 1.0); // imageWidth, imageHeight
+	sprite.position.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5);
+	// for a cube:
+	// sprite.position.multiplyScalar( radiusRange );
+	// for a solid sphere:
+	// sprite.position.setLength( radiusRange * Math.random() );
+	// for a spherical shell:
+	sprite.position.setLength(radiusRange * (Math.random() * 0.1 + 0.9));
+
+	// sprite.color.setRGB( Math.random(),  Math.random(),  Math.random() );
+	sprite.material.color.setRGB(106 / 255, 181 / 255, 246 / 255);
+
+	// sprite.opacity = 0.80; // translucent particles
+	//sprite.material.blending = THREE.AdditiveBlending; // "glowing" particles
+
+	particleGroup.add(sprite);
+
+	// add variable qualities to arrays, if they need to be accessed later
+	particleAttributes.startPosition.push(sprite.position.clone());
+	particleAttributes.randomness.push(Math.random());
+}
+
+particalScene.add(particleGroup);
+
+
+onWindowResize();
+
+renderer.autoClear = false;
+
+render = function() {
+	requestAnimationFrame(render);
+
+	for (var i = 0; i < 12; i++) {
+		barsObject.children[i].children[0].rotation.y += 0.008;
+	}
+
+	barsObject.rotation.y -= 0.003;
+
+	cube.rotation.x += 0.1;
+	cube.rotation.y += 0.1;
+
+
+	//renderer.clear();
+
+
+	renderer.render(scene, camera);
+	renderer.clearDepth();
+	renderer.render(particalScene, camera);
+};
+
+render();
+
+
+function createBar(gradientImage) {
+	//var geometry = new THREE.BoxGeometry(1, 1, 1);
+	var geometry = new THREE.CylinderGeometry(10, 10, 80, 6);
+
+	var cubeMaterial = new THREE.MeshLambertMaterial({
+		color: 0x1e4985,
+		envMap: reflectionCube,
+		transparent: true,
+		opacity: 0.1,
+		refractionRatio: 0.7
+	});
+
+	var mat2 = new THREE.MeshPhongMaterial({
+		color: 0x1e4985,
+		transparent: true,
+		opacity: 0.5,
+		shininess: 10
+	});
+
+	var barObject = new THREE.Object3D();
+	barObject.add(new THREE.Mesh(geometry, cubeMaterial));
+
+	return barObject;
+}
+
+
+function generateBackgroundTexture() {
+	var size = 2048;
+
+	// create canvas
+	var canvas = document.createElement('canvas');
+	canvas.width = size;
+	canvas.height = size;
+
+	// get context
+	var context = canvas.getContext('2d');
+
+	// draw gradient
+	context.rect(0, 0, size, size);
+	var gradient = context.createLinearGradient(0, 0, size, size);
+	gradient.addColorStop(0, '#374161'); // light blue
+	gradient.addColorStop(1, 'transparent'); // dark blue
+	context.fillStyle = gradient;
+	context.fill();
+
+	return canvas;
+}
+
+function createBackground() {
+	var selectedObject = scene.getObjectByName("background");
+	if (selectedObject) {
+		scene.remove(selectedObject);
+	}
+
+	// Load the background texture
+	var backgroundGeo = new THREE.PlaneGeometry(1000, 1000, 0);
+	var backgroundMesh = new THREE.Mesh(backgroundGeo, new THREE.MeshBasicMaterial({map: gradientTexture}));
+
+	backgroundMesh.position.z -= 120;
+
+//backgroundMesh.material.depthTest = false;
+//backgroundMesh.material.depthWrite = false;
+
+	backgroundMesh.name = "background";
+
+	scene.add(backgroundMesh);
+}
+
+function onWindowResize() {
+	camera.aspect = window.innerWidth / window.innerHeight;
+	//camera.updateProjectionMatrix();
+
+	renderer.setSize(window.innerWidth, window.innerHeight);
+
+	createBackground();
+}
+
+</script>
+</body>
+</html>
